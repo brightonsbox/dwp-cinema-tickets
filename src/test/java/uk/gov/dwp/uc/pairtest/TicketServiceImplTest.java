@@ -9,16 +9,21 @@ import thirdparty.paymentgateway.TicketPaymentService;
 import thirdparty.seatbooking.SeatReservationService;
 import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static uk.gov.dwp.uc.pairtest.TicketServiceImpl.TICKET_PRICES;
 import static uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest.Type.ADULT;
 
 @ExtendWith(MockitoExtension.class)
 class TicketServiceImplTest {
 
     private static final long VALID_ACCOUNT_ID = 123;
+
     private static final TicketTypeRequest ONE_ADULT_TICKET = new TicketTypeRequest(ADULT, 1);
-    private static final int COST_FOR_ONE_ADULT = 10;
+
+    private static final int MULTIPLE_ADULTS = 5;
+    private static final TicketTypeRequest MULTIPLE_ADULT_TICKETS = new TicketTypeRequest(ADULT, MULTIPLE_ADULTS);
+
+
 
     @Mock
     private TicketPaymentService ticketPaymentService;
@@ -34,10 +39,26 @@ class TicketServiceImplTest {
     }
 
     @Test
-    void purchaseTickets() {
+    void purchaseTickets_forASingleAdult() {
         service.purchaseTickets(VALID_ACCOUNT_ID, ONE_ADULT_TICKET);
 
-        verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, COST_FOR_ONE_ADULT);
+        verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, TICKET_PRICES.get(ADULT));
         verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 1);
+    }
+
+    @Test
+    void purchaseTickets_forMultipleAdults() {
+        service.purchaseTickets(VALID_ACCOUNT_ID, MULTIPLE_ADULT_TICKETS);
+
+        verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, MULTIPLE_ADULTS * TICKET_PRICES.get(ADULT));
+        verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, MULTIPLE_ADULTS);
+    }
+
+    @Test
+    void purchaseTickets_handlesMultipleRequestsOfTheSameType() {
+        service.purchaseTickets(VALID_ACCOUNT_ID, ONE_ADULT_TICKET, MULTIPLE_ADULT_TICKETS);
+
+        verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, (1 + MULTIPLE_ADULTS) * TICKET_PRICES.get(ADULT));
+        verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 1 + MULTIPLE_ADULTS);
     }
 }
