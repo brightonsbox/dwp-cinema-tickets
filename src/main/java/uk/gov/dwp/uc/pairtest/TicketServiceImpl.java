@@ -7,6 +7,7 @@ import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest.Type;
 import uk.gov.dwp.uc.pairtest.exception.InvalidPurchaseException;
 
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.*;
@@ -14,7 +15,8 @@ import static uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest.Type.*;
 
 public class TicketServiceImpl implements TicketService {
 
-    static final Map<Type, Integer> TICKET_PRICES = Map.of(
+    private static final int MAXIMUM_TICKET_COUNT = 20;
+    private static final Map<Type, Integer> TICKET_PRICES = Map.of(
             ADULT, 20,
             CHILD, 10,
             INFANT, 0);
@@ -33,15 +35,25 @@ public class TicketServiceImpl implements TicketService {
         final var ticketCounts = Stream.of(ticketTypeRequests)
                 .collect(groupingByConcurrent(TicketTypeRequest::getTicketType, summingInt(TicketTypeRequest::getNoOfTickets)));
 
+        validate(ticketCounts);
+
         ticketPaymentService.makePayment(accountId, getTotalCost(ticketCounts));
-        seatReservationService.reserveSeat(accountId, getNumberOfSeats(ticketCounts));
+        seatReservationService.reserveSeat(accountId, getNumberOfSeatsRequired(ticketCounts));
     }
 
-    private int getNumberOfSeats(final Map<Type, Integer> ticketCounts) {
+    private int getTicketCount(final Map<Type, Integer> ticketCounts, final Predicate<Type> filter) {
         return ticketCounts.keySet().stream()
-                .filter(this::isSeatRequired)
+                .filter(filter)
                 .mapToInt(ticketCounts::get)
                 .sum();
+    }
+
+    private int getTotalTicketCount(final Map<Type, Integer> ticketCounts) {
+        return getTicketCount(ticketCounts, x -> true);
+    }
+
+    private int getNumberOfSeatsRequired(final Map<Type, Integer> ticketCounts) {
+        return getTicketCount(ticketCounts, this::isSeatRequired);
     }
 
     private boolean isSeatRequired(final Type type) {
@@ -59,5 +71,15 @@ public class TicketServiceImpl implements TicketService {
         }
 
         return TICKET_PRICES.get(type);
+    }
+
+    private void validate(final Map<Type, Integer> ticketCounts) {
+        mustNotExceedMaximumTicketCount(ticketCounts);
+    }
+
+    private void mustNotExceedMaximumTicketCount(final Map<Type, Integer> ticketCounts) {
+        if (getTotalTicketCount(ticketCounts) > MAXIMUM_TICKET_COUNT) {
+            throw new InvalidPurchaseException();
+        }
     }
 }
