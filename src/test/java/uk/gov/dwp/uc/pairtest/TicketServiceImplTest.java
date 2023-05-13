@@ -24,6 +24,8 @@ class TicketServiceImplTest {
 
     private static final int MAXIMUM_TICKET_AMOUNT = 20;
 
+    private static final TicketTypeRequest SINGLE_ADULT_TICKET = new TicketTypeRequest(ADULT, 1);
+
     @Mock
     private TicketPaymentService ticketPaymentService;
 
@@ -39,7 +41,7 @@ class TicketServiceImplTest {
 
     @Test
     void purchaseTickets_forASingleAdult() {
-        service.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(ADULT, 1));
+        service.purchaseTickets(VALID_ACCOUNT_ID, SINGLE_ADULT_TICKET);
 
         verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, TICKET_PRICE_ADULT);
         verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 1);
@@ -96,16 +98,62 @@ class TicketServiceImplTest {
 
     @Test
     void purchaseTickets_exceedingMaximumTicketCountThrowsException() {
-        assertThatThrownBy(() -> service.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(ADULT, MAXIMUM_TICKET_AMOUNT + 1)))
-                .isInstanceOf(InvalidPurchaseException.class);
+        assertThrowsInvalidPurchaseException(VALID_ACCOUNT_ID, new TicketTypeRequest(ADULT, MAXIMUM_TICKET_AMOUNT + 1));
     }
 
     @Test
     void purchaseTickets_exceedingMaximumTicketCountAcrossAnyTypeThrowsException() {
-        assertThatThrownBy(() -> service.purchaseTickets(VALID_ACCOUNT_ID,
+        assertThrowsInvalidPurchaseException(VALID_ACCOUNT_ID,
                 new TicketTypeRequest(ADULT, 5),
                 new TicketTypeRequest(CHILD, 10),
-                new TicketTypeRequest(INFANT, 16)))
+                new TicketTypeRequest(INFANT, 16));
+    }
+
+    @Test
+    void purchaseTickets_cannotRequestZeroTickets() {
+        assertThrowsInvalidPurchaseException(VALID_ACCOUNT_ID);
+        assertThrowsInvalidPurchaseException(VALID_ACCOUNT_ID, new TicketTypeRequest(ADULT, 0));
+    }
+
+    @Test
+    void purchaseTickets_cannotRequestChildTicketWithoutAdult() {
+        assertThrowsInvalidPurchaseException(VALID_ACCOUNT_ID, new TicketTypeRequest(CHILD, 1));
+    }
+
+    @Test
+    void purchaseTickets_cannotRequestInfantTicketWithoutAdult() {
+        assertThrowsInvalidPurchaseException(VALID_ACCOUNT_ID, new TicketTypeRequest(INFANT, 1));
+    }
+
+    @Test
+    void purchaseTickets_cannotRequestInfantAndChildTicketsWithoutAdult() {
+        assertThrowsInvalidPurchaseException(VALID_ACCOUNT_ID,
+                new TicketTypeRequest(INFANT, 1),
+                new TicketTypeRequest(CHILD, 1));
+    }
+
+    @Test
+    void purchaseTickets_accountNumberGreaterThanZeroValid() {
+        service.purchaseTickets(1L, SINGLE_ADULT_TICKET);
+
+        verify(ticketPaymentService).makePayment(1L, TICKET_PRICE_ADULT);
+        verify(seatReservationService).reserveSeat(1L, 1);
+    }
+
+    @Test
+    void purchaseTickets_nullAccountNumberThrowsException() {
+        assertThrowsInvalidPurchaseException(null, SINGLE_ADULT_TICKET);
+    }
+
+    @Test
+    void purchaseTickets_accountNumberLessThanOneThrowsException() {
+        assertThrowsInvalidPurchaseException(0L, SINGLE_ADULT_TICKET);
+        assertThrowsInvalidPurchaseException(-1L, SINGLE_ADULT_TICKET);
+    }
+
+    private void assertThrowsInvalidPurchaseException(final Long accountId, final TicketTypeRequest... ticketTypeRequests) {
+        assertThatThrownBy(() -> service.purchaseTickets(accountId, ticketTypeRequests))
                 .isInstanceOf(InvalidPurchaseException.class);
+
     }
 }

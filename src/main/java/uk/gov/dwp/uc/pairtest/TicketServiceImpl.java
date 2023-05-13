@@ -32,6 +32,8 @@ public class TicketServiceImpl implements TicketService {
     @Override
     public void purchaseTickets(final Long accountId, final TicketTypeRequest... ticketTypeRequests) throws InvalidPurchaseException {
 
+        validateAccount(accountId);
+
         final var ticketCounts = Stream.of(ticketTypeRequests)
                 .collect(groupingByConcurrent(TicketTypeRequest::getTicketType, summingInt(TicketTypeRequest::getNoOfTickets)));
 
@@ -46,6 +48,10 @@ public class TicketServiceImpl implements TicketService {
                 .filter(filter)
                 .mapToInt(ticketCounts::get)
                 .sum();
+    }
+
+    private int getTicketCountFor(final Map<Type, Integer> ticketCounts, final Type type) {
+        return getTicketCount(ticketCounts, t -> t == type);
     }
 
     private int getTotalTicketCount(final Map<Type, Integer> ticketCounts) {
@@ -73,12 +79,25 @@ public class TicketServiceImpl implements TicketService {
         return TICKET_PRICES.get(type);
     }
 
+    private void validateAccount(final Long accountId) {
+        if (accountId == null || accountId < 1) {
+            throw new InvalidPurchaseException();
+        }
+    }
+
     private void validate(final Map<Type, Integer> ticketCounts) {
         mustNotExceedMaximumTicketCount(ticketCounts);
+        atLeastOneAdultRequired(ticketCounts);
     }
 
     private void mustNotExceedMaximumTicketCount(final Map<Type, Integer> ticketCounts) {
         if (getTotalTicketCount(ticketCounts) > MAXIMUM_TICKET_COUNT) {
+            throw new InvalidPurchaseException();
+        }
+    }
+
+    private void atLeastOneAdultRequired(final Map<Type, Integer> ticketCounts) {
+        if (getTicketCountFor(ticketCounts, ADULT) < 1) {
             throw new InvalidPurchaseException();
         }
     }
