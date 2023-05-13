@@ -20,6 +20,7 @@ Some additional questions that I would want to ask the business:
 
 * Is one adult allowed to have multiple infants sat on their lap? Is there a reasonable limit?
 * What should the behaviour be for a request for zero tickets? Currently my implementation requires at least one adult.
+* Can `InvalidPurchaseExeption` be modified so that a message can be added to the exception to describe in more detail what the issue was?
 
 <br>
 <details>
