@@ -1,5 +1,7 @@
 package uk.gov.dwp.uc.pairtest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import thirdparty.paymentgateway.TicketPaymentService;
 import thirdparty.seatbooking.SeatReservationService;
 import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest;
@@ -14,6 +16,8 @@ import static java.util.stream.Collectors.*;
 import static uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest.Type.*;
 
 public class TicketServiceImpl implements TicketService {
+
+    private static final Logger logger = LogManager.getLogger(TicketService.class);
 
     private static final int MAXIMUM_TICKET_COUNT = 20;
     private static final Map<Type, Integer> TICKET_PRICES = Map.of(
@@ -32,6 +36,8 @@ public class TicketServiceImpl implements TicketService {
     @Override
     public void purchaseTickets(final Long accountId, final TicketTypeRequest... ticketTypeRequests) throws InvalidPurchaseException {
 
+        logger.info("Received request to purchase tickets from accountId: " + accountId);
+
         validateAccount(accountId);
 
         final var ticketCounts = Stream.of(ticketTypeRequests)
@@ -39,8 +45,15 @@ public class TicketServiceImpl implements TicketService {
 
         validate(ticketCounts);
 
-        ticketPaymentService.makePayment(accountId, getTotalCost(ticketCounts));
-        seatReservationService.reserveSeat(accountId, getNumberOfSeatsRequired(ticketCounts));
+        reserveAndPay(accountId, getTotalCost(ticketCounts), getNumberOfSeatsRequired(ticketCounts));
+    }
+
+    private void reserveAndPay(final Long accountId, final int totalCost, final int seatsRequired) {
+        logger.info("Making payment for tickets - accountId: " + accountId + ", cost: " + totalCost);
+        ticketPaymentService.makePayment(accountId, totalCost);
+
+        logger.info("Reserving seats - accountId: " + accountId + ", seats: " + seatsRequired);
+        seatReservationService.reserveSeat(accountId, seatsRequired);
     }
 
     private int getTicketCount(final Map<Type, Integer> ticketCounts, final Predicate<Type> filter) {
